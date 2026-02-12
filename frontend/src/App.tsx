@@ -1,541 +1,495 @@
-import React, { useState } from "react";
-import axios from "axios";
+import React, { useState, useRef } from "react";
+import "./App.css";
 
-interface CVData {
+interface UploadedFile {
+  name: string;
+  size: number;
+  type: string;
+}
+
+interface ExtractedData {
   nom: string;
   prenom: string;
   email: string;
   telephone: string;
+  experiences: Array<{
+    entreprise: string;
+    poste: string;
+    duree: string;
+  }>;
+  formations: Array<{
+    ecole: string;
+    diplome: string;
+    annee: string;
+  }>;
   competences: string[];
-  experiences: Array<{ entreprise: string; poste: string; duree: string }>;
-  formations: Array<{ ecole: string; diplome: string; annee: string }>;
-  extraction_method?: string;
+  error?: string;
 }
 
 function App() {
-  const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<CVData | null>(null);
-  const [error, setError] = useState<string>("");
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [extractedData, setExtractedData] = useState<ExtractedData | null>(
+    null,
+  );
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
-      setError("");
-      setResult(null);
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    if (!file) return;
+    e.stopPropagation();
+    setDragActive(false);
 
-    setLoading(true);
-    setError("");
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFile(e.dataTransfer.files[0]);
+    }
+  };
 
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    if (e.target.files && e.target.files[0]) {
+      handleFile(e.target.files[0]);
+    }
+  };
 
-      const response = await axios.post(
-        "http://localhost:8080/api/analyze",
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        },
-      );
+  const handleFile = (file: File) => {
+    const validTypes = [
+      "application/pdf",
+      "image/png",
+      "image/jpeg",
+      "image/jpg",
+    ];
+    const maxSize = 10 * 1024 * 1024;
 
-      setResult(response.data);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Erreur lors de l'analyse du CV");
-    } finally {
-      setLoading(false);
+    if (!validTypes.includes(file.type)) {
+      alert("Type de fichier non supporté. Utilisez PDF, PNG ou JPG.");
+      return;
+    }
+
+    if (file.size > maxSize) {
+      alert("Fichier trop volumineux. Maximum 10MB.");
+      return;
+    }
+
+    setUploadedFile({
+      name: file.name,
+      size: file.size,
+      type: file.type,
+    });
+  };
+
+  const onButtonClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setUploadedFile(null);
+    setIsAnalyzing(false);
+    setExtractedData(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (uploadedFile) {
+      setIsAnalyzing(true);
+
+      try {
+        // Get the actual file from the file input
+        const fileInput = fileInputRef.current;
+        if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+          throw new Error("Aucun fichier sélectionné");
+        }
+
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch("http://localhost:8001/api/analyze", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            errorData.detail || `Erreur HTTP: ${response.status}`,
+          );
+        }
+
+        const data = await response.json();
+        setExtractedData(data);
+        setIsAnalyzing(false);
+      } catch (error) {
+        console.error("Error:", error);
+        setIsAnalyzing(false);
+        alert(
+          `Erreur lors de l'analyse: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
+        );
+      }
+    }
+  };
+
+  const handleNewAnalysis = () => {
+    setExtractedData(null);
+    setUploadedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
   return (
-    <div
-      style={{
-        fontFamily:
-          '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-        minHeight: "100vh",
-        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-        padding: "20px",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: "white",
-          borderRadius: "20px",
-          boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
-          padding: "40px",
-          maxWidth: "800px",
-          width: "100%",
-        }}
-      >
-        <div style={{ textAlign: "center", marginBottom: "30px" }}>
-          <h1
-            style={{
-              fontSize: "2.5rem",
-              fontWeight: "700",
-              color: "#2d3748",
-              margin: "0",
-              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
-            PFA-CV
-          </h1>
-          <p
-            style={{
-              fontSize: "1.1rem",
-              color: "#718096",
-              marginTop: "10px",
-              fontWeight: "400",
-            }}
-          >
-            Transformez votre CV en données structurées prêtes pour
-            l'intégration RH
-          </p>
+    <div className={`app ${isDarkMode ? "dark-mode" : ""}`}>
+      <header className="app-header">
+        <div className="logo">
+          <div className="logo-icon">
+            <svg
+              viewBox="0 0 40 40"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M20 8L20 32M20 8L12 16M20 8L28 16M20 32C15.5817 32 12 28.4183 12 24C12 19.5817 15.5817 16 20 16C24.4183 16 28 19.5817 28 24C28 28.4183 24.4183 32 20 32Z"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <span className="logo-text">TalentFlow</span>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div
-            style={{
-              border: "3px dashed #cbd5e0",
-              borderRadius: "15px",
-              padding: "50px",
-              textAlign: "center",
-              marginBottom: "30px",
-              transition: "all 0.3s ease",
-              cursor: "pointer",
-              backgroundColor: "#f7fafc",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "4rem",
-                marginBottom: "20px",
-              }}
-            >
-              📄
-            </div>
-            <label htmlFor="file-upload" style={{ cursor: "pointer" }}>
-              <span
-                style={{
-                  color: "#667eea",
-                  fontWeight: "600",
-                  fontSize: "1.1rem",
-                  marginRight: "10px",
-                }}
-              >
-                Cliquez pour télécharger votre CV
-              </span>
-              <span style={{ color: "#a0aec0" }}>ou glissez-déposez</span>
-              <input
-                id="file-upload"
-                type="file"
-                style={{ display: "none" }}
-                accept=".pdf,.png,.jpg,.jpeg"
-                onChange={handleFileChange}
-              />
-            </label>
-            <p
-              style={{
-                fontSize: "0.9rem",
-                color: "#a0aec0",
-                marginTop: "15px",
-              }}
-            >
-              PDF, PNG, JPG jusqu'à 10MB
-            </p>
-            {file && (
-              <div
-                style={{
-                  marginTop: "20px",
-                  padding: "10px 20px",
-                  backgroundColor: "#edf2f7",
-                  borderRadius: "10px",
-                  color: "#4a5568",
-                  fontSize: "0.95rem",
-                  fontWeight: "500",
-                }}
-              >
-                ✅ {file.name}
-              </div>
-            )}
-          </div>
-
+        <div className="theme-toggle">
+          <span className="theme-label"> </span>
           <button
-            type="submit"
-            disabled={!file || loading}
-            style={{
-              width: "100%",
-              backgroundColor:
-                file && !loading
-                  ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-                  : "#e2e8f0",
-              color: file && !loading ? "white" : "#a0aec0",
-              padding: "18px",
-              border: "none",
-              borderRadius: "12px",
-              fontSize: "1.1rem",
-              fontWeight: "600",
-              cursor: file && !loading ? "pointer" : "not-allowed",
-              transition: "all 0.3s ease",
-              boxShadow:
-                file && !loading
-                  ? "0 10px 25px rgba(102, 126, 234, 0.3)"
-                  : "none",
-            }}
+            className="toggle-button"
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            aria-label="Toggle dark mode"
           >
-            {loading ? (
-              <span>
-                <span
-                  style={{
-                    display: "inline-block",
-                    animation: "spin 1s linear infinite",
-                  }}
-                >
-                  ⚙️
-                </span>{" "}
-                Analyse en cours...
-              </span>
-            ) : (
-              "🚀 Analyser le CV"
-            )}
+            <div
+              className={`toggle-slider ${isDarkMode ? "active" : ""}`}
+            ></div>
           </button>
-        </form>
+        </div>
+      </header>
 
-        {error && (
-          <div
-            style={{
-              marginTop: "25px",
-              backgroundColor: "#fed7d7",
-              border: "1px solid #fc8181",
-              borderRadius: "10px",
-              padding: "20px",
-              color: "#c53030",
-              fontWeight: "500",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                marginBottom: "5px",
-              }}
-            >
-              <span style={{ marginRight: "10px", fontSize: "1.2rem" }}>
-                ⚠️
-              </span>
-              <strong>Erreur:</strong>
-            </div>
-            {error}
-          </div>
-        )}
-
-        {result && (
-          <div style={{ marginTop: "40px" }}>
-            <h2
-              style={{
-                color: "#2d3748",
-                marginBottom: "25px",
-                fontSize: "1.8rem",
-                fontWeight: "700",
-                textAlign: "center",
-                paddingBottom: "15px",
-                borderBottom: "3px solid #667eea",
-              }}
-            >
-              📊 Résultats de l'analyse
-            </h2>
+      <div className="main-container">
+        <main className="main-card">
+          <div className="card-content">
+            <h1 className="main-title">TalentFlow</h1>
+            <p className="subtitle">
+              Transformez votre CV en données
+              <br />
+              structurées prêtes pour l'intégration RH
+            </p>
 
             <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-                gap: "25px",
-              }}
+              className={`upload-area ${dragActive ? "drag-active" : ""}`}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
             >
-              <div
-                style={{
-                  background:
-                    "linear-gradient(135deg, #f6f9fc 0%, #e9ecef 100%)",
-                  padding: "25px",
-                  borderRadius: "15px",
-                  border: "1px solid #e2e8f0",
-                }}
-              >
-                <h3
-                  style={{
-                    color: "#667eea",
-                    marginBottom: "15px",
-                    fontSize: "1.2rem",
-                    fontWeight: "600",
-                    display: "flex",
-                    alignItems: "center",
-                  }}
+              <div className="upload-icon">
+                <svg
+                  viewBox="0 0 80 80"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
                 >
-                  <span style={{ marginRight: "10px", fontSize: "1.5rem" }}>
-                    👤
-                  </span>
-                  Identité
-                </h3>
-                <p style={{ margin: "8px 0", color: "#4a5568" }}>
-                  <strong>Nom:</strong> {result.prenom} {result.nom}
-                </p>
-                <p style={{ margin: "8px 0", color: "#4a5568" }}>
-                  <strong>Email:</strong> {result.email}
-                </p>
-                <p style={{ margin: "8px 0", color: "#4a5568" }}>
-                  <strong>Téléphone:</strong> {result.telephone}
-                </p>
+                  <path
+                    d="M40 20V50M40 20L30 30M40 20L50 30"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M25 40C25 40 20 40 20 45C20 50 25 50 25 50H55C55 50 60 50 60 45C60 40 55 40 55 40"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                  />
+                  <circle
+                    cx="40"
+                    cy="45"
+                    r="20"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                  />
+                  <path
+                    className="wave wave-1"
+                    d="M25 48C28 46 32 46 35 48C38 50 42 50 45 48"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    className="wave wave-2"
+                    d="M35 52C38 50 42 50 45 52C48 54 52 54 55 52"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
               </div>
 
-              <div
-                style={{
-                  background:
-                    "linear-gradient(135deg, #f6f9fc 0%, #e9ecef 100%)",
-                  padding: "25px",
-                  borderRadius: "15px",
-                  border: "1px solid #e2e8f0",
-                }}
-              >
-                <h3
-                  style={{
-                    color: "#667eea",
-                    marginBottom: "15px",
-                    fontSize: "1.2rem",
-                    fontWeight: "600",
-                    display: "flex",
-                    alignItems: "center",
-                  }}
-                >
-                  <span style={{ marginRight: "10px", fontSize: "1.5rem" }}>
-                    🎯
-                  </span>
-                  Compétences
-                </h3>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                  {result.competences && result.competences.length > 0 ? (
-                    result.competences.map((skill, index) => (
-                      <span
-                        key={index}
-                        style={{
-                          background:
-                            "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                          color: "white",
-                          padding: "6px 12px",
-                          borderRadius: "20px",
-                          fontSize: "0.85rem",
-                          fontWeight: "500",
-                          boxShadow: "0 2px 8px rgba(102, 126, 234, 0.3)",
-                        }}
-                      >
-                        {skill}
-                      </span>
-                    ))
-                  ) : (
-                    <div
-                      style={{
-                        padding: "15px",
-                        backgroundColor: "#f7fafc",
-                        borderRadius: "8px",
-                        color: "#718096",
-                        textAlign: "center",
-                        width: "100%",
-                      }}
-                    >
-                      Aucune compétence trouvée
-                    </div>
-                  )}
-                </div>
-              </div>
+              <p className="upload-text">
+                Cliquez pour téléverser votre CV
+                <br />
+                ou glisez-déposez
+              </p>
 
-              <div
-                style={{
-                  background:
-                    "linear-gradient(135deg, #f6f9fc 0%, #e9ecef 100%)",
-                  padding: "25px",
-                  borderRadius: "15px",
-                  border: "1px solid #e2e8f0",
-                }}
-              >
-                <h3
-                  style={{
-                    color: "#667eea",
-                    marginBottom: "15px",
-                    fontSize: "1.2rem",
-                    fontWeight: "600",
-                    display: "flex",
-                    alignItems: "center",
-                  }}
-                >
-                  <span style={{ marginRight: "10px", fontSize: "1.5rem" }}>
-                    💼
-                  </span>
-                  Expériences
-                </h3>
-                {result.experiences && result.experiences.length > 0 ? (
-                  result.experiences.map((exp, index) => (
-                    <div
-                      key={index}
-                      style={{
-                        marginBottom: "15px",
-                        padding: "10px",
-                        backgroundColor: "white",
-                        borderRadius: "8px",
-                      }}
-                    >
-                      <p
-                        style={{
-                          margin: "5px 0",
-                          fontWeight: "600",
-                          color: "#2d3748",
-                        }}
-                      >
-                        {exp.poste}
-                      </p>
-                      <p
-                        style={{
-                          margin: "3px 0",
-                          color: "#718096",
-                          fontSize: "0.9rem",
-                        }}
-                      >
-                        {exp.entreprise}
-                      </p>
-                      <p
-                        style={{
-                          margin: "3px 0",
-                          color: "#a0aec0",
-                          fontSize: "0.85rem",
-                        }}
-                      >
-                        {exp.duree}
-                      </p>
-                    </div>
-                  ))
-                ) : (
-                  <div
-                    style={{
-                      padding: "15px",
-                      backgroundColor: "#f7fafc",
-                      borderRadius: "8px",
-                      color: "#718096",
-                      textAlign: "center",
-                    }}
+              <div className="file-types">
+                <span className="file-badge pdf">PDF</span>
+                <span className="file-badge doc">DOC</span>
+                <span className="file-type-text">
+                  PDF, PNG, JPG jusqu'à 10MB
+                </span>
+                <span className="file-badge jpg">JPG</span>
+                <span className="file-badge png">PNG</span>
+                {uploadedFile && (
+                  <span
+                    className="file-badge delete"
+                    onClick={handleDelete}
+                    title="Supprimer le fichier"
                   >
-                    Aucune expérience trouvée
-                  </div>
+                    ✕
+                  </span>
                 )}
               </div>
 
-              <div
-                style={{
-                  background:
-                    "linear-gradient(135deg, #f6f9fc 0%, #e9ecef 100%)",
-                  padding: "25px",
-                  borderRadius: "15px",
-                  border: "1px solid #e2e8f0",
-                }}
-              >
-                <h3
-                  style={{
-                    color: "#667eea",
-                    marginBottom: "15px",
-                    fontSize: "1.2rem",
-                    fontWeight: "600",
-                    display: "flex",
-                    alignItems: "center",
-                  }}
-                >
-                  <span style={{ marginRight: "10px", fontSize: "1.5rem" }}>
-                    🎓
-                  </span>
-                  Formations
-                </h3>
-                {result.formations && result.formations.length > 0 ? (
-                  result.formations.map((formation, index) => (
-                    <div
-                      key={index}
-                      style={{
-                        marginBottom: "15px",
-                        padding: "10px",
-                        backgroundColor: "white",
-                        borderRadius: "8px",
-                      }}
-                    >
-                      <p
-                        style={{
-                          margin: "5px 0",
-                          fontWeight: "600",
-                          color: "#2d3748",
-                        }}
-                      >
-                        {formation.diplome}
-                      </p>
-                      <p
-                        style={{
-                          margin: "3px 0",
-                          color: "#718096",
-                          fontSize: "0.9rem",
-                        }}
-                      >
-                        {formation.ecole}
-                      </p>
-                      <p
-                        style={{
-                          margin: "3px 0",
-                          color: "#a0aec0",
-                          fontSize: "0.85rem",
-                        }}
-                      >
-                        {formation.annee}
-                      </p>
-                    </div>
-                  ))
-                ) : (
-                  <div
-                    style={{
-                      padding: "15px",
-                      backgroundColor: "#f7fafc",
-                      borderRadius: "8px",
-                      color: "#718096",
-                      textAlign: "center",
-                    }}
-                  >
-                    Aucune formation trouvée
-                  </div>
-                )}
-              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="file-input"
+                accept=".pdf,.png,.jpg,.jpeg"
+                onChange={handleChange}
+              />
             </div>
 
-            {result.extraction_method && (
-              <div
-                style={{
-                  marginTop: "30px",
-                  textAlign: "center",
-                  fontSize: "0.9rem",
-                  color: "#718096",
-                  padding: "15px",
-                  backgroundColor: "#f7fafc",
-                  borderRadius: "10px",
-                }}
-              >
-                🤖 Méthode d'extraction: {result.extraction_method}
+            {uploadedFile && !isAnalyzing && (
+              <div className="uploaded-file-info">
+                <span className="check-icon">✓</span>
+                <span>{uploadedFile.name}</span>
+                <span className="file-size">
+                  ({(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)
+                </span>
               </div>
             )}
+
+            {isAnalyzing && (
+              <div className="analyzing-container">
+                <div className="spinner"></div>
+                <p className="analyzing-text">Analyse en cours...</p>
+                <p className="analyzing-subtext">
+                  Extraction des données du CV
+                </p>
+              </div>
+            )}
+
+            {extractedData && !isAnalyzing && (
+              <div className="results-container">
+                {extractedData.error ? (
+                  <div className="data-card">
+                    <h3 className="card-title">❌ Erreur</h3>
+                    <div className="card-content">
+                      <p className="error-message">{extractedData.error}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="results-header">
+                      <h2 className="results-title">✓ Données extraites</h2>
+                      <button
+                        className="copy-json-btn"
+                        onClick={() => {
+                          navigator.clipboard.writeText(
+                            JSON.stringify(extractedData, null, 2),
+                          );
+                        }}
+                      >
+                        📋 Copier JSON
+                      </button>
+                    </div>
+
+                    <div className="data-cards">
+                      {/* Personal Info Card */}
+                      <div className="data-card">
+                        <h3 className="card-title">
+                          👤 Informations personnelles
+                        </h3>
+                        <div className="card-content">
+                          <div className="info-row">
+                            <span className="info-label">Nom complet:</span>
+                            <span className="info-value">
+                              {extractedData.prenom} {extractedData.nom}
+                            </span>
+                          </div>
+                          <div className="info-row">
+                            <span className="info-label">Email:</span>
+                            <span className="info-value">
+                              {extractedData.email}
+                            </span>
+                          </div>
+                          <div className="info-row">
+                            <span className="info-label">Téléphone:</span>
+                            <span className="info-value">
+                              {extractedData.telephone}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Experience Card */}
+                      <div className="data-card">
+                        <h3 className="card-title">
+                          💼 Expérience professionnelle
+                        </h3>
+                        <div className="card-content">
+                          {extractedData.experiences &&
+                          extractedData.experiences.length > 0 ? (
+                            extractedData.experiences.map(
+                              (exp: any, index: number) => (
+                                <div key={index} className="experience-item">
+                                  <div className="exp-header">
+                                    <span className="exp-poste">
+                                      {exp.poste}
+                                    </span>
+                                    <span className="exp-periode">
+                                      {exp.duree}
+                                    </span>
+                                  </div>
+                                  <div className="exp-entreprise">
+                                    {exp.entreprise}
+                                  </div>
+                                </div>
+                              ),
+                            )
+                          ) : (
+                            <p className="no-data">Aucune expérience trouvée</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Education Card */}
+                      <div className="data-card">
+                        <h3 className="card-title">🎓 Formation</h3>
+                        <div className="card-content">
+                          {extractedData.formations &&
+                          extractedData.formations.length > 0 ? (
+                            extractedData.formations.map(
+                              (form: any, index: number) => (
+                                <div key={index} className="formation-item">
+                                  <div className="form-header">
+                                    <span className="form-diplome">
+                                      {form.diplome}
+                                    </span>
+                                    <span className="form-annee">
+                                      {form.annee}
+                                    </span>
+                                  </div>
+                                  <div className="form-etablissement">
+                                    {form.ecole}
+                                  </div>
+                                </div>
+                              ),
+                            )
+                          ) : (
+                            <p className="no-data">Aucune formation trouvée</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Skills Card */}
+                      <div className="data-card">
+                        <h3 className="card-title">⚡ Compétences</h3>
+                        <div className="card-content">
+                          <div className="skills-grid">
+                            {extractedData.competences &&
+                            extractedData.competences.length > 0 ? (
+                              extractedData.competences.map(
+                                (skill: any, index: number) => (
+                                  <span key={index} className="skill-badge">
+                                    {skill}
+                                  </span>
+                                ),
+                              )
+                            ) : (
+                              <p className="no-data">
+                                Aucune compétence trouvée
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="results-actions">
+                      <button
+                        className="download-json-btn"
+                        onClick={() => {
+                          const blob = new Blob(
+                            [JSON.stringify(extractedData, null, 2)],
+                            { type: "application/json" },
+                          );
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = `cv_${uploadedFile?.name.replace(/\.[^/.]+$/, "")}_data.json`;
+                          a.click();
+                        }}
+                      >
+                        ⬇️ Télécharger JSON
+                      </button>
+                      <button
+                        className="new-analysis-btn"
+                        onClick={handleNewAnalysis}
+                      >
+                        🔄 Nouvelle analyse
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            <button
+              className="analyze-button"
+              onClick={uploadedFile ? handleAnalyze : onButtonClick}
+              disabled={isAnalyzing}
+              style={{ display: extractedData ? "none" : "block" }}
+            >
+              {isAnalyzing
+                ? "Analyse en cours..."
+                : uploadedFile
+                  ? "Analyser le CV"
+                  : "Téléverser un fichier"}
+            </button>
+
+            <div
+              className="progress-indicator"
+              style={{ display: extractedData ? "none" : "flex" }}
+            >
+              <div className="progress-dot active"></div>
+              <div className="progress-dot"></div>
+              <div className="progress-dot"></div>
+            </div>
           </div>
-        )}
+        </main>
       </div>
     </div>
   );

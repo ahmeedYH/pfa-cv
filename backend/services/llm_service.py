@@ -27,7 +27,7 @@ async def analyze_cv(text: str) -> Dict[str, Any]:
         if len(cleaned_text) < 20:
             return _get_empty_result("Texte trop court pour l'analyse")
         
-        # Appel à l'IA Groq
+        # Appel direct à l'IA Groq sans validation préalable
         result = await _analyze_with_groq(cleaned_text)
         
         # Log pour debug
@@ -37,6 +37,10 @@ async def analyze_cv(text: str) -> Dict[str, Any]:
         
         # Log pour debug
         print(f"Résultat nettoyé: {cleaned_result}")
+        
+        # Validation post-analyse pour déterminer si c'est un CV
+        if _is_empty_cv_result(cleaned_result):
+            return _get_not_cv_result()
         
         return cleaned_result
         
@@ -189,6 +193,77 @@ def _get_empty_result(reason: str) -> Dict[str, Any]:
         "experiences": [],
         "formations": [],
         "error": reason
+    }
+
+def _is_empty_cv_result(result: Dict[str, Any]) -> bool:
+    """
+    Vérifie si le résultat de l'IA est vide (pas d'infos CV)
+    """
+    return (
+        result.get("nom") == "Non trouvé" and
+        result.get("prenom") == "Non trouvé" and
+        result.get("email") == "Non trouvé" and
+        result.get("telephone") == "Non trouvé" and
+        len(result.get("competences", [])) == 0 and
+        len(result.get("experiences", [])) == 0 and
+        len(result.get("formations", [])) == 0
+    )
+
+def _is_likely_cv(text: str) -> bool:
+    """
+    Vérifie si le texte ressemble à un CV
+    """
+    # Mots-clés typiques des CV
+    cv_keywords = [
+        'expérience', 'expériences', 'experience', 'experiences',
+        'formation', 'formations', 'diplôme', 'diplome', 'diplômes',
+        'compétence', 'compétences', 'competence', 'competences',
+        'parcours', 'professionnel', 'education', 'education',
+        'emploi', 'poste', 'carrière', 'carriere',
+        'curriculum', 'vitae', 'cv', 'resume'
+    ]
+    
+    # Vérifier si le nom du fichier contient "cv"
+    filename_indicators = ['cv', 'curriculum', 'vitae', 'resume']
+    
+    text_lower = text.lower()
+    
+    # Compter les mots-clés trouvés
+    keyword_count = sum(1 for keyword in cv_keywords if keyword in text_lower)
+    
+    # Vérifier la structure (email, téléphone)
+    has_email = bool(re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', text))
+    has_phone = bool(re.search(r'(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}', text))
+    
+    # Score de confiance
+    confidence_score = 0
+    if keyword_count >= 2:
+        confidence_score += 2
+    if keyword_count >= 4:
+        confidence_score += 2
+    if has_email:
+        confidence_score += 2
+    if has_phone:
+        confidence_score += 1
+    if len(text) > 200:
+        confidence_score += 1
+    
+    # Seuil minimum pour considérer que c'est un CV
+    return confidence_score >= 3
+
+def _get_not_cv_result() -> Dict[str, Any]:
+    """
+    Retourne un résultat indiquant que ce n'est pas un CV
+    """
+    return {
+        "nom": "Non trouvé",
+        "prenom": "Non trouvé",
+        "email": "Non trouvé",
+        "telephone": "Non trouvé",
+        "competences": [],
+        "experiences": [],
+        "formations": [],
+        "error": "Ce fichier ne semble pas être un CV. Veuillez télécharger un curriculum vitae valide."
     }
 
 def _get_fallback_result(text: str, error: str) -> Dict[str, Any]:
