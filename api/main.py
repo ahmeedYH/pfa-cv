@@ -1,15 +1,26 @@
 from pathlib import Path
-from dotenv import load_dotenv
+import os
 
-# Load environment variables from backend/.env
-load_dotenv(Path(__file__).resolve().parent / ".env")
+# Try to load environment variables
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent / ".env")
+    print("Environment loaded successfully")
+except Exception as e:
+    print(f"Error loading environment: {e}")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from main_api import router as api_router
-from api.cv_controller import router as cv_router
+try:
+    from main_api import router as api_router
+    from api.cv_controller import router as cv_router
+    print("Routers imported successfully")
+except Exception as e:
+    print(f"Error importing routers: {e}")
+    api_router = None
+    cv_router = None
 
 app = FastAPI(
     title="pfa-cv",
@@ -33,6 +44,8 @@ app.add_middleware(
         "http://127.0.0.1:3004",
         "http://localhost:8080",
         "http://127.0.0.1:8080",
+        "https://talentflow-frontend-indol.vercel.app",
+        "https://*.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -45,8 +58,10 @@ if static_dir.exists():
     app.mount("/static", StaticFiles(directory=static_dir, html=True), name="static")
 
 # -------------------- Routers --------------------
-app.include_router(api_router)
-app.include_router(cv_router)
+if api_router:
+    app.include_router(api_router)
+if cv_router:
+    app.include_router(cv_router)
 
 # -------------------- Health & Root --------------------
 @app.get("/")
