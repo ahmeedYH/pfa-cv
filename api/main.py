@@ -8,8 +8,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from backend.main_api import router as api_router
-from backend.api.cv_controller import router as cv_router
+from main_api import router as api_router
+from api.cv_controller import router as cv_router
 
 app = FastAPI(
     title="pfa-cv",

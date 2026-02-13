@@ -1,6 +1,6 @@
 from fastapi import APIRouter, File, UploadFile, Form
 from fastapi.responses import JSONResponse
-from backend.services.cv_service import process_text_cv, process_file_cv, process_image_cv
+from services.cv_service import process_text_cv, process_file_cv, process_image_cv
 
 router = APIRouter(prefix="/api/cv", tags=["CV"])
 

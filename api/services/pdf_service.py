@@ -3,7 +3,7 @@ import tempfile
 import os
 from PyPDF2 import PdfReader
 from pdf2image import convert_from_bytes
-from backend.services.ocr_service import extract_text_from_image
+from services.ocr_service import extract_text_from_image
 
 def extract_text_from_file(file):
     """

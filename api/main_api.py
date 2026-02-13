@@ -1,8 +1,8 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException
 
-from backend.services.pdf_service import extract_text_from_file
-from backend.services.llm_service import analyze_cv
-from backend.utils.cleaner import clean_cv_text
+from services.pdf_service import extract_text_from_file
+from services.llm_service import analyze_cv
+from utils.cleaner import clean_cv_text
 
 router = APIRouter(prefix="/api", tags=["cv"])
 

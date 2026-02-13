@@ -1,7 +1,7 @@
 import io
-from backend.services.pdf_service import extract_text_from_file
-from backend.services.ocr_service import extract_text_from_image
-from backend.services.llm_service import analyze_cv
+from services.pdf_service import extract_text_from_file
+from services.ocr_service import extract_text_from_image
+from services.llm_service import analyze_cv
 
 
 async def process_text_cv(text: str) -> dict:
