@@ -428,8 +428,8 @@ function App() {
                         <div className="card-content">
                           <div className="skills-grid">
                             {extractedData.competences &&
-                            extractedDataData.competences.length > 0 ? (
-                              extractedDataData.competences.map(
+                            extractedData.competences.length > 0 ? (
+                              extractedData.competences.map(
                                 (skill: any, index: number) => (
                                   <span key={index} className="skill-badge">
                                     {skill}
