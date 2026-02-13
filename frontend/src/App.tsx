@@ -4,6 +4,7 @@ import "./App.css";
 // Debug: Log environment variable
 console.log("API URL:", process.env.REACT_APP_API_URL);
 console.log("Environment:", process.env.NODE_ENV);
+console.log("React loaded successfully!");
 
 interface UploadedFile {
   name: string;
