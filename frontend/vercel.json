@@ -14,5 +14,8 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "src": "api/*.js"
+  }
 }
