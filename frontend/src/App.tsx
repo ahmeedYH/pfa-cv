@@ -124,7 +124,7 @@ function App() {
         formData.append("file", file);
 
         const response = await fetch(
-          `${process.env.REACT_APP_API_URL || "http://localhost:8001"}/api/analyze`,
+          `${process.env.REACT_APP_API_URL || "http://localhost:8001"}/api/cv/analyze/file`,
           {
             method: "POST",
             body: formData,
