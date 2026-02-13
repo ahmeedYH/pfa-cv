@@ -5,7 +5,12 @@ from typing import Dict, Any
 from groq import Groq
 
 # Initialiser le client Groq
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+try:
+    client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+    print("Groq client initialized successfully")
+except Exception as e:
+    print(f"Error initializing Groq client: {e}")
+    client = None
 
 async def analyze_cv(text: str) -> Dict[str, Any]:
     """
@@ -19,6 +24,9 @@ async def analyze_cv(text: str) -> Dict[str, Any]:
     """
     if not text or not text.strip():
         return _get_empty_result("Aucun texte à analyser")
+    
+    if not client:
+        return _get_empty_result("Groq client not initialized")
     
     try:
         # Nettoyer le texte
